@@ -1,0 +1,14 @@
+constexpr auto kMaxIterations = 2000;
+constexpr auto kSquareBound = 4.0;
+constexpr auto kImageWidth = 1280;
+constexpr auto kImageHeight = 720;
+constexpr auto kDataWidth = kImageWidth + 2;
+constexpr auto kDataHeight = kImageHeight + 2;
+constexpr auto kCenterX = -0.743643135;
+constexpr auto kCenterY = 0.131825963;
+constexpr auto kDiameterX = 0.000014628;
+constexpr auto kDiameterY = kDiameterX / kImageWidth * kImageHeight;
+constexpr auto kMinX = kCenterX - kDiameterX / 2;
+constexpr auto kMaxX = kCenterX + kDiameterX / 2;
+constexpr auto kMinY = kCenterY - kDiameterY / 2;
+constexpr auto kMaxY = kCenterY + kDiameterY / 2;

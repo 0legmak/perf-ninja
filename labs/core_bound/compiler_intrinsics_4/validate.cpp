@@ -1,6 +1,7 @@
+#include "data_paths.h"
+#include "picture.h"
 #include "solution.h"
 #include "wait_for_debugger.h"
-#include "data_paths.h"
 
 #include <print>
 #include <fstream>
