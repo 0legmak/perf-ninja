@@ -69,8 +69,7 @@ std::vector<short> mandelbrot() {
     for (int iter_cnt = 0; iter_cnt < kMaxIterations; ++iter_cnt) {
       const auto z_xx = vec_mul(z_x, z_x);
       const auto z_yy = vec_mul(z_y, z_y);
-      const auto squared_abs = vec_add(z_xx, z_yy);
-      for (unsigned mask = vec_cmpgt_mask(squared_abs, squared_bound); mask; ) {
+      for (unsigned mask = vec_cmpgt_mask(vec_add(z_xx, z_yy), squared_bound); mask; ) {
         const auto res_idx = std::countr_zero(mask);
         res_cnt += res[res_idx] == kMaxIterations;
         res[res_idx] = std::min(res[res_idx], iter_cnt);
