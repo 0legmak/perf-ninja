@@ -2,6 +2,7 @@
 #include "const.h"
 
 #include <array>
+#include <cstdint>
 #include <numeric>
 #include <vector>
 

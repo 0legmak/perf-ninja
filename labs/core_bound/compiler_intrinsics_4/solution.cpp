@@ -16,7 +16,7 @@ constexpr auto& vec_load = _mm512_loadu_pd;
 constexpr auto& vec_add = _mm512_add_pd;
 constexpr auto& vec_sub = _mm512_sub_pd;
 constexpr auto& vec_mul = _mm512_mul_pd;
-constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm512_cmp_pd_mask(a, b, _CMP_GT_OQ); }
+constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm512_cmp_pd_mask(a, b, _CMP_GT_OQ); };
 #elif defined(__AVX2__)
 using Vec = __m256d;
 constexpr auto& vec_setzero = _mm256_setzero_pd;
@@ -25,7 +25,7 @@ constexpr auto& vec_load = _mm256_loadu_pd;
 constexpr auto& vec_add = _mm256_add_pd;
 constexpr auto& vec_sub = _mm256_sub_pd;
 constexpr auto& vec_mul = _mm256_mul_pd;
-constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm256_movemask_pd(_mm256_cmp_pd(a, b, _CMP_GT_OQ)); }
+constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm256_movemask_pd(_mm256_cmp_pd(a, b, _CMP_GT_OQ)); };
 #else
 using Vec = __m128d;
 constexpr auto& vec_setzero = _mm_setzero_pd;

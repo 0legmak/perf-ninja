@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#ifdef _WIN32
+
 #include <windows.h>
 
 void WaitForDebugger() {
@@ -11,3 +13,5 @@ void WaitForDebugger() {
   }
   //DebugBreak(); // Trigger a breakpoint once debugger is attached
 }
+
+#endif  // _WIN32
