@@ -137,12 +137,13 @@ RGB gaussian_blur(const RGB input[3][3]) {
 
 std::string generate_ppm_image(const std::vector<short>& data) {
   std::string out;
-  out.append("P3\n");
+  out.append("P6\n");
   out.append(std::to_string(kImageWidth));
   out.push_back(' ');
   out.append(std::to_string(kImageHeight));
   out.push_back('\n');
   out.append("255\n");
+  out.reserve(out.size() + kImageWidth * kImageHeight * sizeof(RGB));
   RGB color_matrix[3][3];
   const auto color_map = calc_color_map();
   for (int py = 0; py < kImageHeight; ++py) {
@@ -158,12 +159,7 @@ std::string generate_ppm_image(const std::vector<short>& data) {
         color_matrix[2][y] = color_map[data[(py + y) * kDataWidth + px + 2]];
       }
       const auto color = gaussian_blur(color_matrix);
-      out.append(std::to_string(color[0]));
-      out.push_back(' ');
-      out.append(std::to_string(color[1]));
-      out.push_back(' ');
-      out.append(std::to_string(color[2]));
-      out.push_back(" \n"[px == kImageWidth - 1]);
+      out.append(color.begin(), color.end());
     }
   }
   return out;

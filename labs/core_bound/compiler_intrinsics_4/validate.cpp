@@ -4,6 +4,7 @@
 #include "wait_for_debugger.h"
 
 #include <chrono>
+#include <ios>
 #include <iostream>
 #include <fstream>
 
@@ -16,6 +17,6 @@ int main() {
   const auto image = generate_ppm_image(data);
   const auto finish = std::chrono::high_resolution_clock::now();
   std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(finish - start) << '\n';
-  std::ofstream(output_image_path) << image;
+  std::ofstream(output_image_path, std::ios::binary) << image;
   return 0;
 }
