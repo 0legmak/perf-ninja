@@ -42,12 +42,13 @@ constexpr auto& vec_mul = _mm_mul_pd;
 constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm_movemask_pd(_mm_cmpgt_pd(a, b)); };
 #endif
 constexpr auto kVecSize = sizeof(Vec) / sizeof(double);
+constexpr auto kChunkSize = 1000;
 }  // namespace
 
 #define SOLUTION
 #ifdef SOLUTION
 
-std::vector<short> mandelbrot(ThreadPool& thread_pool) {
+std::vector<short> mandelbrot_thread_pool(ThreadPool& thread_pool) {
   constexpr size_t data_size = (kDataWidth * kDataHeight + kVecSize - 1) / kVecSize * kVecSize;
   std::vector<short> data(data_size);
   auto job = [&data](size_t begin, size_t end) -> void {
@@ -91,13 +92,60 @@ std::vector<short> mandelbrot(ThreadPool& thread_pool) {
       std::copy(res.begin(), res.end(), data.begin() + data_idx);
     }
   };
-  constexpr size_t threaded_job_size = (1000 + kVecSize - 1) / kVecSize * kVecSize;
+  constexpr size_t threaded_job_size = (kChunkSize + kVecSize - 1) / kVecSize * kVecSize;
   std::vector<std::future<void>> threaded_results;
   for (size_t idx = 0; idx < data_size; idx += threaded_job_size) {
     threaded_results.push_back(thread_pool.enqueue(job, idx, std::min(data_size, idx + threaded_job_size)));
   }
   for (auto& res : threaded_results) {
     res.wait();
+  }
+  return data;
+}
+
+std::vector<short> mandelbrot_openmp() {
+  constexpr size_t data_size = (kDataWidth * kDataHeight + kVecSize - 1) / kVecSize * kVecSize;
+  std::vector<short> data(data_size);
+  const auto squared_bound = vec_set1(kSquareBound);
+#pragma omp parallel for schedule(static, kChunkSize)
+//#pragma omp parallel for schedule(auto)
+  for (int data_idx = 0; data_idx < data_size; data_idx += kVecSize) {
+    auto px = data_idx % kDataWidth;
+    auto py = data_idx / kDataWidth;
+    std::array<double, kVecSize> c_x_src;
+    std::array<double, kVecSize> c_y_src;
+    for (int i = 0; i < kVecSize; ++i) {
+      c_x_src[i] = std::lerp(kMinX, kMaxX, 1.0 * px / kDataWidth);
+      c_y_src[i] = std::lerp(kMinY, kMaxY, 1.0 * py / kDataHeight);
+      if (++px == kDataWidth) {
+        px = 0;
+        ++py;
+      }
+    }
+    const auto c_x = vec_load(c_x_src.data());
+    const auto c_y = vec_load(c_y_src.data());
+    auto z_x = vec_setzero();
+    auto z_y = vec_setzero();
+    std::array<int, kVecSize> res;
+    res.fill(kMaxIterations);
+    auto res_cnt = 0;
+    for (int iter_cnt = 0; iter_cnt < kMaxIterations; ++iter_cnt) {
+      const auto z_xx = vec_mul(z_x, z_x);
+      const auto z_yy = vec_mul(z_y, z_y);
+      for (unsigned mask = vec_cmpgt_mask(vec_add(z_xx, z_yy), squared_bound); mask; ) {
+        const auto res_idx = std::countr_zero(mask);
+        res_cnt += res[res_idx] == kMaxIterations;
+        res[res_idx] = std::min(res[res_idx], iter_cnt);
+        mask -= 1 << res_idx;
+      }
+      if (res_cnt == kVecSize) {
+        break;
+      }
+      const auto z_xy = vec_mul(z_x, z_y);
+      z_x = vec_add(vec_sub(z_xx, z_yy), c_x);
+      z_y = vec_add(vec_add(z_xy, z_xy), c_y);
+    }
+    std::copy(res.begin(), res.end(), data.begin() + data_idx);
   }
   return data;
 }
