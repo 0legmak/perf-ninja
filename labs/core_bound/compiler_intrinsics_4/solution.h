@@ -1,3 +1,5 @@
 #include <vector>
 
-std::vector<short> mandelbrot();
+class ThreadPool;
+
+std::vector<short> mandelbrot(ThreadPool& thread_pool);

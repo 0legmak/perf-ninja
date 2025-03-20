@@ -1,5 +1,6 @@
 #include "solution.h"
 #include "const.h"
+#include "thread_pool.h"
 
 #include <emmintrin.h>
 #include <immintrin.h>
@@ -43,50 +44,60 @@ constexpr auto vec_cmpgt_mask = [](auto a, auto b) { return _mm_movemask_pd(_mm_
 constexpr auto kVecSize = sizeof(Vec) / sizeof(double);
 }  // namespace
 
-#define SOLUTION2
+#define SOLUTION
 #ifdef SOLUTION
 
-std::vector<short> mandelbrot() {
+std::vector<short> mandelbrot(ThreadPool& thread_pool) {
   constexpr size_t data_size = (kDataWidth * kDataHeight + kVecSize - 1) / kVecSize * kVecSize;
   std::vector<short> data(data_size);
-  auto px = 0;
-  auto py = 0;
-  const auto squared_bound = vec_set1(kSquareBound);
-  for (int data_idx = 0; data_idx < data_size; data_idx += kVecSize) {
-    std::array<double, kVecSize> c_x_src;
-    std::array<double, kVecSize> c_y_src;
-    for (int i = 0; i < kVecSize; ++i) {
-      c_x_src[i] = kMinX + (kMaxX - kMinX) * px / kDataWidth;
-      c_y_src[i] = kMinY + (kMaxY - kMinY) * py / kDataHeight;
-      if (++px == kDataWidth) {
-        px = 0;
-        ++py;
+  auto job = [&data](size_t begin, size_t end) -> void {
+    auto px = begin % kDataWidth;
+    auto py = begin / kDataWidth;
+    const auto squared_bound = vec_set1(kSquareBound);
+    for (int data_idx = begin; data_idx < end; data_idx += kVecSize) {
+      std::array<double, kVecSize> c_x_src;
+      std::array<double, kVecSize> c_y_src;
+      for (int i = 0; i < kVecSize; ++i) {
+        c_x_src[i] = std::lerp(kMinX, kMaxX, 1.0 * px / kDataWidth);
+        c_y_src[i] = std::lerp(kMinY, kMaxY, 1.0 * py / kDataHeight);
+        if (++px == kDataWidth) {
+          px = 0;
+          ++py;
+        }
       }
+      const auto c_x = vec_load(c_x_src.data());
+      const auto c_y = vec_load(c_y_src.data());
+      auto z_x = vec_setzero();
+      auto z_y = vec_setzero();
+      std::array<int, kVecSize> res;
+      res.fill(kMaxIterations);
+      auto res_cnt = 0;
+      for (int iter_cnt = 0; iter_cnt < kMaxIterations; ++iter_cnt) {
+        const auto z_xx = vec_mul(z_x, z_x);
+        const auto z_yy = vec_mul(z_y, z_y);
+        for (unsigned mask = vec_cmpgt_mask(vec_add(z_xx, z_yy), squared_bound); mask; ) {
+          const auto res_idx = std::countr_zero(mask);
+          res_cnt += res[res_idx] == kMaxIterations;
+          res[res_idx] = std::min(res[res_idx], iter_cnt);
+          mask -= 1 << res_idx;
+        }
+        if (res_cnt == kVecSize) {
+          break;
+        }
+        const auto z_xy = vec_mul(z_x, z_y);
+        z_x = vec_add(vec_sub(z_xx, z_yy), c_x);
+        z_y = vec_add(vec_add(z_xy, z_xy), c_y);
+      }
+      std::copy(res.begin(), res.end(), data.begin() + data_idx);
     }
-    const auto c_x = vec_load(c_x_src.data());
-    const auto c_y = vec_load(c_y_src.data());
-    auto z_x = vec_setzero();
-    auto z_y = vec_setzero();
-    std::array<int, kVecSize> res;
-    res.fill(kMaxIterations);
-    auto res_cnt = 0;
-    for (int iter_cnt = 0; iter_cnt < kMaxIterations; ++iter_cnt) {
-      const auto z_xx = vec_mul(z_x, z_x);
-      const auto z_yy = vec_mul(z_y, z_y);
-      for (unsigned mask = vec_cmpgt_mask(vec_add(z_xx, z_yy), squared_bound); mask; ) {
-        const auto res_idx = std::countr_zero(mask);
-        res_cnt += res[res_idx] == kMaxIterations;
-        res[res_idx] = std::min(res[res_idx], iter_cnt);
-        mask -= 1 << res_idx;
-      }
-      if (res_cnt == kVecSize) {
-        break;
-      }
-      const auto z_xy = vec_mul(z_x, z_y);
-      z_x = vec_add(vec_sub(z_xx, z_yy), c_x);
-      z_y = vec_add(vec_add(z_xy, z_xy), c_y);
-    }
-    std::copy(res.begin(), res.end(), data.begin() + data_idx);
+  };
+  constexpr size_t threaded_job_size = (1000 + kVecSize - 1) / kVecSize * kVecSize;
+  std::vector<std::future<void>> threaded_results;
+  for (size_t idx = 0; idx < data_size; idx += threaded_job_size) {
+    threaded_results.push_back(thread_pool.enqueue(job, idx, std::min(data_size, idx + threaded_job_size)));
+  }
+  for (auto& res : threaded_results) {
+    res.wait();
   }
   return data;
 }

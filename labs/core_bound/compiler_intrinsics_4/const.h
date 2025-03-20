@@ -1,7 +1,7 @@
 constexpr auto kMaxIterations = 2000;
 constexpr auto kSquareBound = 4.0;
-constexpr auto kImageWidth = 1280;
-constexpr auto kImageHeight = 720;
+constexpr auto kImageWidth = 1600;
+constexpr auto kImageHeight = 900;
 constexpr auto kDataWidth = kImageWidth + 2;
 constexpr auto kDataHeight = kImageHeight + 2;
 constexpr auto kCenterX = -0.743643135;
