@@ -2,6 +2,11 @@
 
 class ThreadPool;
 
-std::vector<short> mandelbrot();
-std::vector<short> mandelbrot_thread_pool(ThreadPool& thread_pool);
-std::vector<short> mandelbrot_openmp();
+enum class ImplType {
+  kOriginal,
+  kVectorized,
+  kThreadPool,
+  kOpenMP
+};
+
+std::vector<short> mandelbrot(ImplType impl_type);

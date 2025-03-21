@@ -65,3 +65,5 @@ private:
   std::queue<std::move_only_function<void()>> tasks;
   bool is_stopped = false;
 };
+
+ThreadPool& get_thread_pool();
