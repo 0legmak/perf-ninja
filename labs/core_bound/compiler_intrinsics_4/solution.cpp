@@ -87,7 +87,7 @@ std::vector<short> mandelbrot() {
     std::array<double, kVecSize> c_x_arr;
     std::array<double, kVecSize> c_y_arr;
     std::array<size_t, kVecSize> res_idx;
-    size_t data_idx = 0;
+    size_t data_idx = begin;
     size_t res_used = 0;
     auto next_data_item = [&](int idx) {
       if (data_idx < end) {
