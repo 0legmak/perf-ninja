@@ -1,24 +1,27 @@
-#include "solution.h"
 #include "const.h"
+#include "solution.h"
 #include "thread_pool.h"
 
+#if defined(__x86_64__) || defined(_M_X64)
 #include <emmintrin.h>
 #include <immintrin.h>
 #include <smmintrin.h>
+#else
+#include <arm_neon.h>
+#endif
 
 #include <array>
 #include <bit>
 #include <cmath>
 
 namespace {
+#if defined(__x86_64__) || defined(_M_X64)
 #if defined(__AVX512F__)
 using Vec = __m512d;
-using VecInt = __m512i;
 constexpr auto& vec_setzero = _mm512_setzero_pd;
 constexpr auto& vec_set1 = _mm512_set1_pd;
 constexpr auto& vec_set1_int = _mm512_set1_epi64;
 constexpr auto& vec_load = _mm512_loadu_pd;
-constexpr auto& vec_store = _mm512_storeu_pd;
 constexpr auto& vec_store_int = _mm512_storeu_si512;
 constexpr auto& vec_add = _mm512_add_pd;
 constexpr auto& vec_add_int = _mm512_add_epi64;
@@ -31,41 +34,58 @@ constexpr auto vec_or_mask = [](auto a, auto b) { return a | b; };
 constexpr auto vec_movemask = [](auto m) { return m; };
 #elif defined(__AVX2__)
 using Vec = __m256d;
-using VecInt = __m256i;
 constexpr auto& vec_setzero = _mm256_setzero_pd;
 constexpr auto& vec_set1 = _mm256_set1_pd;
 constexpr auto& vec_set1_int = _mm256_set1_epi64x;
 constexpr auto& vec_load = _mm256_loadu_pd;
-constexpr auto& vec_store = _mm256_storeu_pd;
-constexpr auto& vec_store_int = _mm256_storeu_si256;
+constexpr auto vec_store_int = [](auto* a, auto b) { _mm256_storeu_si256((__m256i*)a, b); };
 constexpr auto& vec_add = _mm256_add_pd;
 constexpr auto& vec_add_int = _mm256_add_epi64;
 constexpr auto& vec_sub = _mm256_sub_pd;
 constexpr auto& vec_mul = _mm256_mul_pd;
-constexpr auto vec_blend = [](auto a, auto b, auto m) { return _mm256_blendv_pd(a, b, m); };
-constexpr auto vec_cmpeq_int64 = [](auto a, auto b) { return _mm256_cmpeq_epi64(a, b); };
+constexpr auto& vec_blend = _mm256_blendv_pd;
+constexpr auto& vec_cmpeq_int64 = _mm256_cmpeq_epi64;
 constexpr auto vec_cmpgt_double = [](auto a, auto b) { return _mm256_cmp_pd(a, b, _CMP_GT_OQ); };
-constexpr auto vec_or_mask = [](auto a, auto b) { return _mm256_or_si256(a, b); };
-constexpr auto vec_movemask = [](auto m) { return _mm256_movemask_pd(m); };
+constexpr auto& vec_or_mask = _mm256_or_si256;
+constexpr auto& vec_movemask = _mm256_movemask_pd;
 #else
 using Vec = __m128d;
-using VecInt = __m128i;
 constexpr auto& vec_setzero = _mm_setzero_pd;
 constexpr auto& vec_set1 = _mm_set1_pd;
 constexpr auto& vec_set1_int = _mm_set1_epi64x;
 constexpr auto& vec_load = _mm_loadu_pd;
-constexpr auto& vec_store = _mm_storeu_pd;
-constexpr auto& vec_store_int = _mm_storeu_si128;
+constexpr auto vec_store_int = [](auto* a, auto b) { _mm_storeu_si128((__m128i*)a, b); };
 constexpr auto& vec_add = _mm_add_pd;
 constexpr auto& vec_add_int = _mm_add_epi64;
 constexpr auto& vec_sub = _mm_sub_pd;
 constexpr auto& vec_mul = _mm_mul_pd;
-constexpr auto vec_blend = [](auto a, auto b, auto m) { return _mm_blendv_pd(a, b, m); };
-constexpr auto vec_cmpeq_int64 = [](auto a, auto b) { return _mm_cmpeq_epi64(a, b); };
-constexpr auto vec_cmpgt_double = [](auto a, auto b) { return _mm_cmpgt_pd(a, b); };
-constexpr auto vec_or_mask = [](auto a, auto b) { return _mm_or_si128(a, b); };
-constexpr auto vec_movemask = [](auto m) { return _mm_movemask_pd(m); };
+constexpr auto& vec_blend = _mm_blendv_pd;
+constexpr auto& vec_cmpeq_int64 = _mm_cmpeq_epi64;
+constexpr auto& vec_cmpgt_double = _mm_cmpgt_pd;
+constexpr auto& vec_or_mask = _mm_or_si128;
+constexpr auto& vec_movemask = _mm_movemask_pd;
 #endif
+#else
+using Vec = float64x2_t;
+constexpr auto vec_setzero = []() { return vdupq_n_f64(0.0); };
+constexpr auto& vec_set1 = vdupq_n_f64;
+constexpr auto& vec_set1_int = vdupq_n_u64;
+constexpr auto vec_load = [](const auto* a) { return vld1q_f64(a); };
+constexpr auto vec_store_int = [](auto* a, auto b) { vst1q_u64(a, b); };
+constexpr auto& vec_add = vaddq_f64;
+constexpr auto& vec_add_int = vaddq_u64;
+constexpr auto& vec_sub = vsubq_f64;
+constexpr auto& vec_mul = vmulq_f64;
+constexpr auto vec_blend = [](auto a, auto b, auto m) { return vbslq_f64(m, b, a); };
+constexpr auto& vec_cmpeq_int64 = vceqq_u64;
+constexpr auto& vec_cmpgt_double = vcgtq_f64;
+constexpr auto& vec_or_mask = vorrq_u64;
+constexpr auto vec_movemask = [](auto m) {
+  const auto bit0 = vgetq_lane_u64(m, 0) & 0b01;
+  const auto bit1 = vgetq_lane_u64(m, 1) & 0b10;
+  return bit1 | bit0;
+};
+#endif  // __x86_64__
 constexpr auto kVecSize = sizeof(Vec) / sizeof(double);
 constexpr auto kChunkSize = 1000;
 }  // namespace
@@ -148,7 +168,7 @@ std::vector<short> mandelbrot(int image_width, int image_height, ImplType impl_t
       const auto cond_mask = vec_or_mask(max_iter_mask, squared_bound_mask);
       if (uint8_t mask = vec_movemask(cond_mask); mask) {
         std::array<uint64_t, kVecSize> iter_cnt_arr;
-        vec_store_int((VecInt*)iter_cnt_arr.data(), iter_cnt);
+        vec_store_int(iter_cnt_arr.data(), iter_cnt);
         for (; mask; mask &= mask - 1) {
           const auto ridx = std::countr_zero(mask);
           if (res_idx[ridx] != -1) {
