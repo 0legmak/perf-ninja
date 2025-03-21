@@ -32,7 +32,7 @@ public:
   }
 
   template <class F, class... Args>
-  auto enqueue(F&& f, Args... args) -> std::future<typename std::invoke_result<F, Args...>::type> {
+  auto enqueue(F&& f, Args&&... args) -> std::future<typename std::invoke_result<F, Args...>::type> {
     using ResultType = typename std::invoke_result<F, Args...>::type;
     std::packaged_task<ResultType()> packaged_task(
       std::bind(std::forward<F>(f), std::forward<Args>(args)...)
