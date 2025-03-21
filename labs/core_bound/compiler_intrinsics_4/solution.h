@@ -2,7 +2,7 @@
 
 class ThreadPool;
 
-enum class ImplType {
+enum ImplType {
   kOriginal,
   kVectorized,
   kThreadPool,
