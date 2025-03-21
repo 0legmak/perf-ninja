@@ -10,11 +10,8 @@
 #include <fstream>
 
 int main() {
-  //WaitForDebugger();
-  ThreadPool thread_pool(std::thread::hardware_concurrency());
   const auto start1 = std::chrono::high_resolution_clock::now();
-  //const auto data = mandelbrot_thread_pool(thread_pool);
-  const auto data = mandelbrot_openmp();
+  const auto data = mandelbrot();
   const auto finish1 = std::chrono::high_resolution_clock::now();
   std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(finish1 - start1) << '\n';
   const auto start = std::chrono::high_resolution_clock::now();
