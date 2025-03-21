@@ -8,6 +8,7 @@
 
 #include <array>
 #include <bit>
+#include <cmath>
 
 namespace {
 #if defined(__AVX512F__)
