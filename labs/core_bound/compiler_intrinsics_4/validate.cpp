@@ -1,3 +1,4 @@
+#include "const.h"
 #include "data_paths.h"
 #include "picture.h"
 #include "solution.h"
@@ -11,7 +12,7 @@
 
 int main() {
   const auto start1 = std::chrono::high_resolution_clock::now();
-  const auto data = mandelbrot(ImplType::kThreadPool);
+  const auto data = mandelbrot(kImageWidth, kImageHeight, ImplType::kOriginal);
   const auto finish1 = std::chrono::high_resolution_clock::now();
   std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(finish1 - start1) << '\n';
   const auto start = std::chrono::high_resolution_clock::now();

@@ -70,8 +70,15 @@ constexpr auto kVecSize = sizeof(Vec) / sizeof(double);
 constexpr auto kChunkSize = 1000;
 }  // namespace
 
-std::vector<short> mandelbrot(ImplType impl_type) {
-  constexpr size_t data_size = kDataWidth * kDataHeight;
+std::vector<short> mandelbrot(int image_width, int image_height, ImplType impl_type) {
+  const auto data_width = image_width + 2;
+  const auto data_height = image_height + 2;
+  const auto diameter_y = kDiameterX / image_width * image_height;
+  const auto min_x = kCenterX - kDiameterX / 2;
+  const auto max_x = kCenterX + kDiameterX / 2;
+  const auto min_y = kCenterY - diameter_y / 2;
+  const auto max_y = kCenterY + diameter_y / 2;  
+  const size_t data_size = data_width * data_height;
   std::vector<short> data(data_size);
   const auto squared_bound = vec_set1(kSquareBound);
   const auto max_iter = vec_set1_int(kMaxIterations);
@@ -79,13 +86,13 @@ std::vector<short> mandelbrot(ImplType impl_type) {
   
   auto original = [&]() {
     auto data_idx = 0;
-    for (int py = 0; py < kDataHeight; ++py) {
-      for (int px = 0; px < kDataWidth; ++px) {
-        const auto c_x = kMinX + (kMaxX - kMinX) * px / kDataWidth;
-        const auto c_y = kMinY + (kMaxY - kMinY) * py / kDataHeight;
+    for (auto py = 0; py < data_height; ++py) {
+      for (auto px = 0; px < data_width; ++px) {
+        const auto c_x = std::lerp(min_x, max_x, 1.0 * px / data_width);
+        const auto c_y = std::lerp(min_y, max_y, 1.0 * py / data_height);
         auto z_x = 0.0;
         auto z_y = 0.0;
-        int iter_cnt = 0;
+        auto iter_cnt = 0;
         for (; iter_cnt < kMaxIterations; ++iter_cnt) {
           const auto z_xx = z_x * z_x;
           const auto z_yy = z_y * z_y;
@@ -102,7 +109,7 @@ std::vector<short> mandelbrot(ImplType impl_type) {
   };
 
   auto process_chunk = [&](size_t begin, size_t end) {
-    auto [py, px] = std::div(begin, kDataWidth);
+    auto [py, px] = std::div(begin, data_width);
     std::array<double, kVecSize> c_x_arr;
     std::array<double, kVecSize> c_y_arr;
     std::array<size_t, kVecSize> res_idx;
@@ -110,9 +117,9 @@ std::vector<short> mandelbrot(ImplType impl_type) {
     size_t res_used = 0;
     auto next_data_item = [&](int idx) {
       if (data_idx < end) {
-        c_x_arr[idx] = std::lerp(kMinX, kMaxX, 1.0 * px / kDataWidth);
-        c_y_arr[idx] = std::lerp(kMinY, kMaxY, 1.0 * py / kDataHeight);
-        if (++px == kDataWidth) {
+        c_x_arr[idx] = std::lerp(min_x, max_x, 1.0 * px / data_width);
+        c_y_arr[idx] = std::lerp(min_y, max_y, 1.0 * py / data_height);
+        if (++px == data_width) {
           px = 0;
           ++py;
         }

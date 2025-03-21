@@ -9,4 +9,4 @@ enum ImplType {
   kOpenMP
 };
 
-std::vector<short> mandelbrot(ImplType impl_type);
+std::vector<short> mandelbrot(int image_width, int image_height, ImplType impl_type);
