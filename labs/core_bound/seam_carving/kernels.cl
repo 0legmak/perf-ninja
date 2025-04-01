@@ -1,7 +1,7 @@
 // a simple OpenCL kernel which adds two vectors A and B together into a third vector C
 kernel void vector_add(global const int* a, global const int* b, global int* c) {
-	int id = get_global_id(0);
-	c[id] = a[id] + b[id];
+  int id = get_global_id(0);
+  c[id] = a[id] + b[id];
 }
 
 inline float get_r(global const unsigned char* pixels, int width, int row, int col) {
@@ -35,8 +35,8 @@ inline float calc_energy(global const unsigned char* pixels, int width, int row,
 };
 
 kernel void vector_calc_energy(global const unsigned char* pixels, int width, global float* energy) {
-	int energy_row = get_global_id(0);
-	int energy_col = get_global_id(1);
+  int energy_row = get_global_id(0);
+  int energy_col = get_global_id(1);
   int energy_width = width - 2;
   int pixel_row = energy_row + 1;
   int pixel_col = energy_col + 1;

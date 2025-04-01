@@ -15,20 +15,20 @@ using namespace std::literals;
 
 namespace {
   void print_devices() {
-	  std::vector<cl::Platform> platforms;
-	  cl::Platform::get(&platforms);
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
     std::println("Available OpenCL platforms and devices:");
-	  for (const auto& platform : platforms)	{
-		  std::println("\tPlatform {}; version: {}; vendor: {}",
+    for (const auto& platform : platforms)	{
+      std::println("\tPlatform {}; version: {}; vendor: {}",
         platform.getInfo<CL_PLATFORM_NAME>(),
         platform.getInfo<CL_PLATFORM_VERSION>(),
         platform.getInfo<CL_PLATFORM_VENDOR>()
       );
-		  std::vector<cl::Device> devices;
-		  platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
-		  for (const auto& device : devices) {
+      std::vector<cl::Device> devices;
+      platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
+      for (const auto& device : devices) {
         auto get_device_type = [&]() {
-			    const auto device_type = device.getInfo<CL_DEVICE_TYPE>();
+          const auto device_type = device.getInfo<CL_DEVICE_TYPE>();
           constexpr int device_count = 4;
           constexpr std::array<std::pair<int, std::string_view>, device_count> types = {{
             { CL_DEVICE_TYPE_CPU, "CPU"sv },
@@ -36,13 +36,13 @@ namespace {
             { CL_DEVICE_TYPE_ACCELERATOR, "ACCELERATOR"sv }
           }};
           for (const auto [type, label] : types) {
-			      if (device_type & type) {
-				      return label;
+            if (device_type & type) {
+              return label;
             }
           }
-			    return "UNKNOWN"sv;
+          return "UNKNOWN"sv;
         };
-			  std::println(
+        std::println(
           "\t\t{} {}\n\t\t\tVersion: {}\n\t\t\tVendor: {}\n\t\t\tCompute units: {}\n\t\t\t"
           "Max work group size: {}\n\t\t\tMax work item dimensions: {}\n\t\t\tMax work item sizes: {}\n\t\t\t"
           "Max memory size: {}\n\t\t\tMax allocatable memory: {}",
@@ -54,11 +54,11 @@ namespace {
           device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(),
           device.getInfo<CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS>(),
           device.getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>(),
-			    device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>(),
-			    device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>()
+          device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>(),
+          device.getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>()
         );
-		  }
-	  }
+      }
+    }
   }
 
 } // namespace
@@ -121,14 +121,14 @@ int main() {
   //  cl::Program cl_program(cl_context, kernel_sources, /* build */ true);
 
   //  constexpr auto vector_size = 1000;
-		//std::vector<int> a(vector_size); // = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    //std::vector<int> a(vector_size); // = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
   //  std::iota(a.begin(), a.end(), 0);
-		//std::vector<int> b(vector_size); // = { 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
+    //std::vector<int> b(vector_size); // = { 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
   //  std::iota(b.begin(), b.end(), 0);
-		//const auto vector_size_bytes = vector_size * sizeof(a[0]);
+    //const auto vector_size_bytes = vector_size * sizeof(a[0]);
 
-		//cl::Buffer buffer_a(cl_context, a.begin(), a.end(), true);
-		//cl::Buffer buffer_b(cl_context, b.begin(), b.end(), true);
+    //cl::Buffer buffer_a(cl_context, a.begin(), a.end(), true);
+    //cl::Buffer buffer_b(cl_context, b.begin(), b.end(), true);
   //  cl::Buffer buffer_c(cl_context, CL_MEM_READ_WRITE, vector_size_bytes);
 
   //  auto vector_add_kernel = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer>(cl_program, "vector_add");
@@ -143,7 +143,7 @@ int main() {
   //  );
 
   //  std::vector<int> c(vector_size);
-		//cl_command_queue.enqueueReadBuffer(buffer_c, CL_TRUE, 0, vector_size_bytes, c.data());
+    //cl_command_queue.enqueueReadBuffer(buffer_c, CL_TRUE, 0, vector_size_bytes, c.data());
   //  std::println("{}", std::span(c.begin() + c.size() - 10, c.end()));
 
   } catch (const cl::BuildError& err) {
