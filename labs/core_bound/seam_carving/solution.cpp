@@ -64,7 +64,7 @@ Solution::Solution() {
 }
 
 std::vector<float> Solution::solution(const std::vector<RGB>& input, int width, int height) {
-	cl::Buffer pixel_buffer(cl_context, input.begin(), input.end(), true);
+  cl::Buffer pixel_buffer(cl_context, input.begin(), input.end(), true);
   const int output_size = (width - 2) * (height - 2);
   const int output_size_bytes = output_size * sizeof(float);
   cl::Buffer output_buffer(cl_context, CL_MEM_WRITE_ONLY, output_size_bytes);
@@ -78,6 +78,6 @@ std::vector<float> Solution::solution(const std::vector<RGB>& input, int width, 
     output_buffer
   );
   std::vector<float> output(output_size);
-	cl_command_queue.enqueueReadBuffer(output_buffer, CL_TRUE, 0, output_size_bytes, output.data());
+  cl_command_queue.enqueueReadBuffer(output_buffer, CL_TRUE, 0, output_size_bytes, output.data());
   return output;
 }
