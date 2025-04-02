@@ -4,7 +4,7 @@
 #include <CL/cl_version.h>
 #include <CL/opencl.hpp>
 
-std::vector<float> reference_solution(const std::vector<RGB>& input, int width, int height);
+std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, int height, int remove_cnt = 1);
 
 class Solution {
 public:

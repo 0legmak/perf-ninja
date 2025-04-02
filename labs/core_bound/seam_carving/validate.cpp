@@ -61,33 +61,79 @@ namespace {
     }
   }
 
+  struct PPMImage {
+    int width;
+    int height;
+    int max_color_value;
+    std::vector<RGB> data;
+  };
+
+  PPMImage load_ppm_image(const std::string& file_path) {
+    std::ifstream file(file_path, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + file_path);
+    }
+    std::string magic_number;
+    file >> magic_number;
+    if (magic_number != "P6") {
+        throw std::runtime_error("Invalid PPM file: " + file_path);
+    }
+    int width, height, max_color_value;
+    file >> width >> height >> max_color_value;
+    file.ignore(1); // Skip the newline character after the header
+    std::vector<RGB> data(width * height);
+    file.read(reinterpret_cast<char*>(data.data()), data.size() * sizeof(RGB));
+    if (!file) {
+        throw std::runtime_error("Failed to read image data from file: " + file_path);
+    }
+    return {width, height, max_color_value, data};
+  }
+
+  void save_ppm_image(const PPMImage& image, const std::string& file_path) {
+    std::ofstream file(file_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open file: " + file_path);
+    }
+    file << "P6\n";
+    file << image.width << ' ' << image.height << '\n';
+    file << image.max_color_value << '\n';
+    file.write(reinterpret_cast<const char*>(image.data.data()), image.data.size() * sizeof(RGB));
+    if (!file) {
+      throw std::runtime_error("Failed to write image data to file: " + file_path);
+    }
+  }
+
 } // namespace
 
 int main() {
   try {
     print_devices();
+    auto image = load_ppm_image("C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon.ppm");
+    image.data = reference_solution(image.data, image.width, image.height, image.width / 2);
+    image.width /= 2;
+    save_ppm_image(image, "C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon_reduced.ppm");
 
-    const auto input = init1();
-    const auto ref = reference_solution(input, kWidth, kHeight);
-    const auto sol = Solution().solution(input, kWidth, kHeight);
+    //const auto input = init1();
+    //const auto ref = reference_solution(input, kWidth, kHeight);
+    //const auto sol = Solution().solution(input, kWidth, kHeight);
 
-    if (ref.size() != sol.size()) {
-      std::println("size mismatch: ref={} sol={}", ref.size(), sol.size());
-      return EXIT_FAILURE;
-    }
-    for (int r = 0; r < kHeight - 2; ++r) {
-      for (int c = 0; c < kWidth - 2; ++c) {
-        const auto ref_val = ref[r * (kWidth - 2) + c];
-        const auto sol_val = sol[r * (kWidth - 2) + c];
-        constexpr float kError = 1e-6;
-        const auto error = fabs(ref_val - sol_val) / ref_val;
-        if (error > kError) {
-          std::println("data mismatch at [{},{}]: ref={} sol={} error={}", r, c, ref_val, sol_val, error);
-          return EXIT_FAILURE;
-        }
-      }
-    }
-    std::println("Validation Successful");
+    //if (ref.size() != sol.size()) {
+    //  std::println("size mismatch: ref={} sol={}", ref.size(), sol.size());
+    //  return EXIT_FAILURE;
+    //}
+    //for (int r = 0; r < kHeight - 2; ++r) {
+    //  for (int c = 0; c < kWidth - 2; ++c) {
+    //    const auto ref_val = ref[r * (kWidth - 2) + c];
+    //    const auto sol_val = sol[r * (kWidth - 2) + c];
+    //    constexpr float kError = 1e-6;
+    //    const auto error = fabs(ref_val - sol_val) / ref_val;
+    //    if (error > kError) {
+    //      std::println("data mismatch at [{},{}]: ref={} sol={} error={}", r, c, ref_val, sol_val, error);
+    //      return EXIT_FAILURE;
+    //    }
+    //  }
+    //}
+    //std::println("Validation Successful");
 
     //for (int r = 0; r < kHeight; ++r) {
     //  for (int c = 0; c < kWidth; ++c) {
@@ -109,42 +155,6 @@ int main() {
     //  }
     //  std::println("");
     //}
-
-
-  //  cl::Context cl_context = cl::Context::getDefault();
-  //  for (const auto& device : cl_context.getInfo<CL_CONTEXT_DEVICES>()) {
-  //    std::println("Using device: {}", device.getInfo<CL_DEVICE_NAME>());
-  //  }
-  //  cl::CommandQueue cl_command_queue(cl_context);
-
-  //  const auto kernel_sources = load_file(kernels_cl_path);
-  //  cl::Program cl_program(cl_context, kernel_sources, /* build */ true);
-
-  //  constexpr auto vector_size = 1000;
-    //std::vector<int> a(vector_size); // = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-  //  std::iota(a.begin(), a.end(), 0);
-    //std::vector<int> b(vector_size); // = { 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
-  //  std::iota(b.begin(), b.end(), 0);
-    //const auto vector_size_bytes = vector_size * sizeof(a[0]);
-
-    //cl::Buffer buffer_a(cl_context, a.begin(), a.end(), true);
-    //cl::Buffer buffer_b(cl_context, b.begin(), b.end(), true);
-  //  cl::Buffer buffer_c(cl_context, CL_MEM_READ_WRITE, vector_size_bytes);
-
-  //  auto vector_add_kernel = cl::KernelFunctor<cl::Buffer, cl::Buffer, cl::Buffer>(cl_program, "vector_add");
-  //  vector_add_kernel(
-  //    cl::EnqueueArgs(
-  //      cl_command_queue,
-  //      cl::NDRange(vector_size)
-  //    ),
-  //    buffer_a,
-  //    buffer_b,
-  //    buffer_c
-  //  );
-
-  //  std::vector<int> c(vector_size);
-    //cl_command_queue.enqueueReadBuffer(buffer_c, CL_TRUE, 0, vector_size_bytes, c.data());
-  //  std::println("{}", std::span(c.begin() + c.size() - 10, c.end()));
 
   } catch (const cl::BuildError& err) {
     std::println("OpenCL build error: {}, code: {}", err.what(), err.err());
