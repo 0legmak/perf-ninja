@@ -108,14 +108,14 @@ namespace {
 int main() {
   try {
     print_devices();
-    auto image = load_ppm_image("C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon.ppm");
-    image.data = reference_solution(image.data, image.width, image.height, image.width / 2);
-    image.width /= 2;
-    save_ppm_image(image, "C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon_reduced.ppm");
+    //auto image = load_ppm_image("C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon.ppm");
+    //image.data = reference_solution(image.data, image.width, image.height, image.width / 2);
+    //image.width /= 2;
+    //save_ppm_image(image, "C:\\Users\\admin\\source\\repos\\perf-ninja-fork\\labs\\core_bound\\seam_carving\\chameleon_reduced.ppm");
 
-    //const auto input = init1();
+    const auto input = init1();
     //const auto ref = reference_solution(input, kWidth, kHeight);
-    //const auto sol = Solution().solution(input, kWidth, kHeight);
+    const auto sol = Solution().solution(input, kWidth, kHeight);
 
     //if (ref.size() != sol.size()) {
     //  std::println("size mismatch: ref={} sol={}", ref.size(), sol.size());

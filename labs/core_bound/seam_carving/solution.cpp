@@ -31,15 +31,16 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
     return std::mdspan(ptr, mapping);
   };
 
+  // calculate dual-gradient energy function for pixels
   std::vector<RGB> pixels_buffer(input);
   auto pixels = create_buffer_span(pixels_buffer.data());
-  auto squared_diff = [](float v1, float v2) {
-    return (v1 - v2) * (v1 - v2);
-  };
-  auto squared_gradient = [&squared_diff](const RGB c1, const RGB c2) {
-    return squared_diff(c1[0], c2[0]) + squared_diff(c1[1], c2[1]) + squared_diff(c1[2], c2[2]);
-  };
-  auto calc_energy = [&pixels, &squared_gradient](int row, int col) {
+  auto calc_energy = [&pixels](int row, int col) {
+    auto squared_gradient = [](const RGB c1, const RGB c2) {
+      auto squared_diff = [](float v1, float v2) {
+        return (v1 - v2) * (v1 - v2);
+      };
+      return squared_diff(c1[0], c2[0]) + squared_diff(c1[1], c2[1]) + squared_diff(c1[2], c2[2]);
+    };
     return std::sqrt(
       squared_gradient(pixels[row, col - 1], pixels[row, col + 1]) +
       squared_gradient(pixels[row - 1, col], pixels[row + 1, col])
@@ -57,22 +58,13 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
     energy[0, col] = energy[height - 1, col] = kBorderEnergy;
   }
 
-  std::println("ref time: {}", 
-    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count()
-  );
-  //for (int r = 0; r < height; ++r) {
-  //  for (int c = 0; c < width; ++c) {
-  //    std::print("{:8.5} ", energy[r, c]);
-  //  }
-  //  std::println("");
-  //}
-
   std::vector<float> dist_buffer(width * height);
   std::vector<char> prev_buffer(width * height);
   while (remove_cnt--) {
     auto dist = create_buffer_span(dist_buffer.data());
     auto prev = create_buffer_span(prev_buffer.data());
-    for (int row = 1; row < height; ++row) {
+    // solve shortest path in DAG
+    for (int row = 1; row < height - 1; ++row) {
       dist[row, 0] = dist[row, width - 1] = std::numeric_limits<float>::max();
       for (int col = 1; col < width - 1; ++col) {
         dist[row, col] = dist[row - 1, col];
@@ -87,7 +79,7 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
         dist[row, col] += energy[row, col];
       }
     }
-
+    // find a vertical seam (minimal energy path from top to bottom)
     std::vector<int> seam(height);
     const auto last_row = height - 2;
     auto min_col = 1;
@@ -104,7 +96,7 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
     }
     seam[0] = seam[1];
     seam[height - 1] = seam[last_row];
-
+    // delete vertical seam
     for (int row = 1; row < height - 1; ++row) {
       for (int col = seam[row]; col < width - 1; ++col) {
         pixels[row, col] = pixels[row, col + 1];
@@ -114,7 +106,7 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
     --width;
     pixels = create_buffer_span(pixels_buffer.data());
     energy = create_buffer_span(energy_buffer.data());
-
+    // recalculate energy
     for (int row = 1; row < height - 1; ++row) {
       for (const int col : { seam[row] - 1, seam[row] }) {
         if (col == 0 || col == width - 1) {
@@ -136,6 +128,8 @@ std::vector<RGB> reference_solution(const std::vector<RGB>& input, int width, in
   return result_buffer;
 }
 
+
+
 Solution::Solution() {
   cl_context = cl::Context::getDefault();
   //for (const auto& device : cl_context.getInfo<CL_CONTEXT_DEVICES>()) {
@@ -144,7 +138,6 @@ Solution::Solution() {
   cl_command_queue = cl::CommandQueue(cl_context, CL_QUEUE_PROFILING_ENABLE);
   const auto kernel_sources = load_file(kernels_cl_path);
   cl_program = cl::Program(cl_context, kernel_sources, /* build */ true);
-  calc_energy_kernel = std::make_unique<cl::KernelFunctor<cl::Buffer, int, cl::Buffer>>(cl_program, "vector_calc_energy");
 }
 
 template <typename T>
@@ -232,10 +225,11 @@ std::vector<float> Solution::solution(const std::vector<RGB>& input, int width, 
   timer.mark("pixel_buffer_unmapping");
 
   const auto energy_buffer_bytes = buffer_width * buffer_height * sizeof(float);
-  cl::Buffer energy_buffer(cl_context, CL_MEM_WRITE_ONLY, energy_buffer_bytes);
+  cl::Buffer energy_buffer(cl_context, CL_MEM_READ_WRITE, energy_buffer_bytes);
   timer.mark("energy_buffer");
 
-  auto calc_energy_event = (*calc_energy_kernel)(
+  cl::KernelFunctor<cl::Buffer, int, cl::Buffer> calc_energy_kernel(cl_program, "calc_energy");
+  auto calc_energy_event = calc_energy_kernel(
     cl::EnqueueArgs(
       cl_command_queue,
       cl::NDRange(buffer_height - 2, buffer_width - 2),
@@ -253,21 +247,43 @@ std::vector<float> Solution::solution(const std::vector<RGB>& input, int width, 
   );
   timer.mark("calc_energy_kernel");
 
-  std::vector<float> energy(width * height);
-  BufferMapping<float> energy_buffer_mapping(energy_buffer, cl_command_queue, energy_buffer_bytes, CL_MAP_READ);
-  timer.mark("energy_buffer_mapping");
-  for (int r = 1; r < height - 1; ++r) {
-    std::copy(energy_buffer_mapping.ptr() + r * buffer_width, energy_buffer_mapping.ptr() + r * buffer_width + width, energy.begin() + r * width);
-  }
-  timer.mark("energy_buffer_copy");
-  energy_buffer_mapping.unmap();
-  timer.mark("energy_buffer_unmapping");
-  for (int row = 0; row < height; ++row) {
-    energy[row * width + 0] = energy[row * width + width - 1] = kBorderEnergy;
-  }
-  for (int col = 0; col < width; ++col) {
-    energy[0 * width + col] = energy[(height - 1) * width + col] = kBorderEnergy;
-  }
+  cl::KernelFunctor<cl::Buffer, int, int, int> set_border_energy_kernel(cl_program, "set_border_energy");
+  set_border_energy_kernel(
+    cl::EnqueueArgs(
+      cl_command_queue,
+      cl::NDRange((width + height - 2) * 2)
+    ),
+    energy_buffer,
+    width,
+    height,
+    buffer_width
+  );
+
+  cl::Buffer dist_buffer(cl_context, CL_MEM_READ_WRITE, width * height * sizeof(float));
+  cl::Buffer prev_buffer(cl_context, CL_MEM_READ_WRITE, width * height * sizeof(char));
+  cl::KernelFunctor<cl::Buffer, int, int, int> calc_shortest_path_kernel(cl_program, "calc_shortest_path");
+  set_border_energy_kernel(
+    cl::EnqueueArgs(
+      cl_command_queue,
+      cl::NDRange(width * height),
+      cl::NDRange(width * height)
+    ),
+    energy_buffer,
+    width,
+    height,
+    buffer_width
+  );
+
+
+  //std::vector<float> energy(width * height);
+  //BufferMapping<float> energy_buffer_mapping(energy_buffer, cl_command_queue, energy_buffer_bytes, CL_MAP_READ);
+  //timer.mark("energy_buffer_mapping");
+  //for (int r = 0; r < height; ++r) {
+  //  std::copy(energy_buffer_mapping.ptr() + r * buffer_width, energy_buffer_mapping.ptr() + r * buffer_width + width, energy.begin() + r * width);
+  //}
+  //timer.mark("energy_buffer_copy");
+  //energy_buffer_mapping.unmap();
+  //timer.mark("energy_buffer_unmapping");
 
   //for (int r = 0; r < height; ++r) {
   //  for (int c = 0; c < width; ++c) {

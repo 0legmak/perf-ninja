@@ -21,11 +21,28 @@ inline float squared_gradient(global const unsigned char* pixels, int width, int
     sqr(get_b(pixels, width, row1, col1) - get_b(pixels, width, row2, col2));
 };
 
-kernel void vector_calc_energy(global const unsigned char* pixels, int width, global float* energy) {
+kernel void calc_energy(global const unsigned char* pixels, int width, global float* energy) {
   int row = get_global_id(0) + 1;
   int col = get_global_id(1) + 1;
   energy[row * width + col] = sqrt(
     squared_gradient(pixels, width, row, col - 1, row, col + 1) +
     squared_gradient(pixels, width, row - 1, col, row + 1, col)
   );
+}
+
+kernel void set_border_energy(global float* energy, int width, int height, int vertical_stride) {
+  const float kBorderEnergy = 1000.0;
+  int idx = get_global_id(0);
+  int row, col;
+  if (idx < width) {
+    row = 0;
+    col = idx;
+  } else if (idx < width + 2 * (height - 2)) {
+    row = (idx - width) / 2 + 1;
+    col = (idx - width) % 2 == 0 ? 0 : width - 1;
+  } else {
+    row = height - 1;
+    col = idx - (width + 2 * (height - 2));
+  }
+  energy[row * vertical_stride + col] = kBorderEnergy;
 }
