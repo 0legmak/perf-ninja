@@ -7,41 +7,6 @@
 #include <CL/cl_version.h>
 #include <CL/opencl.hpp>
 
-class CpuSolution : public ISolution {
-public:
-  void set_input(const std::vector<float>& a, const std::vector<float>& b, int N, int K, int M) override {
-    this->a = a;
-    this->b = b;
-    this->N = N;
-    this->K = K;
-    this->M = M;
-    res.resize(N * M);
-  }
-  void run_kernel() override {
-    for (int i = 0; i < N; ++i) {
-      for (int j = 0; j < M; ++j) {
-        for (int k = 0; k < K; ++k) {
-          res[i * M + j] += a[i * K + k] * b[k * M + j];
-        }
-      }
-    }
-  }
-  std::vector<float> get_output() override {
-    return res;
-  }
-private:
-  std::vector<float> a;
-  std::vector<float> b;
-  int N = 0;
-  int K = 0;
-  int M = 0;
-  std::vector<float> res;
-};
-
-std::unique_ptr<ISolution> cpu_solution() {
-  return std::make_unique<CpuSolution>();
-}
-
 namespace {
 
 template <typename T>
@@ -134,7 +99,6 @@ public:
   Reference(bool profile) : profile(profile), program(kernel_source, true), matmul(program, "matmul") {
   }
   void set_input(const std::vector<float>& a, const std::vector<float>& b, int N, int K, int M) override {
-    const size_t max_wg_count = 4 * sqrt(cl::Device::getDefault().getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>());
     wg_size_0 = std::min(16, N);
     wg_size_1 = std::min(16, M);
     wg_count_0 = (N + wg_size_0 - 1) / wg_size_0;
@@ -276,8 +240,8 @@ private:
     cl::LocalSpaceArg,
     cl::Buffer
   > matmul;
-  size_t wg_count_0 = 0;
-  size_t wg_count_1 = 0;
+  int wg_count_0 = 0;
+  int wg_count_1 = 0;
   cl::Buffer a_buffer;
   cl::Buffer b_buffer;
   int N = 0;

@@ -9,9 +9,9 @@
 #include <CL/opencl.hpp>
 
 namespace {
-  constexpr size_t N = 1111;
-  constexpr size_t K = 1112;
-  constexpr size_t M = 1113;
+  constexpr size_t N = 111;
+  constexpr size_t K = 222;
+  constexpr size_t M = 333;
   constexpr auto kMaxError = 1e-5;
 } // namespace
 

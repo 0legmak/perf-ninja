@@ -9,6 +9,5 @@ public:
   virtual std::vector<float> get_output() = 0;
 };
 
-std::unique_ptr<ISolution> cpu_solution();
 std::unique_ptr<ISolution> reference_solution(bool profile = false);
 std::unique_ptr<ISolution> solution(bool profile = false);
