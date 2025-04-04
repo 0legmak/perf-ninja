@@ -1,2 +1,4 @@
+#include <string>
+
 void print_devices();
-const char* get_error_string(int code);
+std::string get_error_string(int code);

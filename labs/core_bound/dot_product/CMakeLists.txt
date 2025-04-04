@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 project(main LANGUAGES CXX)
 
-find_package(OpenCL CONFIG REQUIRED)
+find_package(OpenCL REQUIRED)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/labs.cmake)
 

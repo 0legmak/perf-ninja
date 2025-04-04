@@ -54,7 +54,7 @@ void print_devices() {
   }
 }
 
-const char* get_error_string(int code) {
+std::string get_error_string(int code) {
   switch (code) {
     case CL_SUCCESS: return "CL_SUCCESS";
     case CL_DEVICE_NOT_FOUND: return "CL_DEVICE_NOT_FOUND";
@@ -132,5 +132,5 @@ const char* get_error_string(int code) {
     case CL_MAX_SIZE_RESTRICTION_EXCEEDED: return "CL_MAX_SIZE_RESTRICTION_EXCEEDED";
 #endif
   }
-  return "";
+  return std::to_string(code);
 }
