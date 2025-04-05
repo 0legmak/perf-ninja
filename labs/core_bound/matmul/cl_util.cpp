@@ -1,6 +1,6 @@
 #include "cl_util.h"
 
-#include <print>
+#include <iostream>
 
 #include <CL/cl_version.h>
 #include <CL/opencl.hpp>
@@ -11,14 +11,20 @@ void print_devices() {
   std::vector<cl::Platform> platforms;
   cl::Platform::get(&platforms);
   for (const auto& platform : platforms)	{
-    std::println("Platform {}; version: {}; vendor: {}",
-      platform.getInfo<CL_PLATFORM_NAME>(),
-      platform.getInfo<CL_PLATFORM_VERSION>(),
-      platform.getInfo<CL_PLATFORM_VENDOR>()
-    );
+    std::cout << "Platform " << platform.getInfo<CL_PLATFORM_NAME>()
+      << "; version: " << platform.getInfo<CL_PLATFORM_VERSION>()
+      << "; vendor: " << platform.getInfo<CL_PLATFORM_VENDOR>() << '\n';
     std::vector<cl::Device> devices;
     platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
     for (const auto& device : devices) {
+      auto get_work_item_sizes = [&]() -> std::string {
+        std::string res = "[";
+        for (const auto v : device.getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>()) {
+          res += " " + std::to_string(v);
+        }
+        res += " ]";
+        return res;
+      };
       auto get_device_type = [&]() -> std::string {
         const auto device_type = device.getInfo<CL_DEVICE_TYPE>();
         constexpr int device_count = 3;
@@ -57,7 +63,7 @@ void print_devices() {
         if (cache_type == CL_READ_WRITE_CACHE) {
           res += "; read-write";
         }
-        res += "; cache line size = " + std::to_string(cache_line_size);
+        res += "; cache line size = " + std::to_string(cache_line_size) + " bytes";
         return res;
       };
       auto get_global_memory_info = [&]() -> std::string {
@@ -81,22 +87,15 @@ void print_devices() {
         }
         return res;
       };
-      std::println(
-        "\t{} {}\n\t\tVersion: {}\n\t\tVendor: {}\n\t\tCompute units: {}\n\t\t"
-        "Max work group size: {}\n\t\tMax work item dimensions: {}\n\t\tMax work item sizes: {}\n\t\t"
-        "Global memory: {}\n\t\tGlobal cache: {}\n\t\tLocal memory: {}",
-        get_device_type(),
-        device.getInfo<CL_DEVICE_NAME>(),
-        device.getInfo<CL_DEVICE_VERSION>(),
-        device.getInfo<CL_DEVICE_VENDOR>(),
-        device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>(),
-        device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(),
-        device.getInfo<CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS>(),
-        device.getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>(),
-        get_global_memory_info(),
-        get_cache_info(),
-        get_local_memory_info()
-      );
+      std::cout << "\t" << get_device_type() << " " << device.getInfo<CL_DEVICE_NAME>() << '\n'
+        << "\t\tVersion: " << device.getInfo<CL_DEVICE_VERSION>() << '\n'
+        << "\t\tVendor: " << device.getInfo<CL_DEVICE_VENDOR>() << '\n'
+        << "\t\tCompute units: " << device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>() << '\n'
+        << "\t\tMax work group size: " << device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>() << '\n'
+        << "\t\tMax work item sizes: " << get_work_item_sizes() << '\n'
+        << "\t\tGlobal memory: " << get_global_memory_info() << '\n'
+        << "\t\tGlobal cache: " << get_cache_info() << '\n'
+        << "\t\tLocal memory: " << get_local_memory_info() << '\n';
     }
   }
 }

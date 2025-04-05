@@ -3,7 +3,6 @@
 #include "cl_util.h"
 
 #include <iostream>
-#include <print>
 
 #include <CL/cl_version.h>
 #include <CL/opencl.hpp>
@@ -20,11 +19,11 @@ int main() {
     print_devices();
     cl::CommandQueue::setDefault(cl::CommandQueue(cl::QueueProperties::Profiling));
     const auto [a, b] = init(N, K, M);
-    const auto ref = reference_solution(true);
+    const auto ref = reference_solution();
     ref->set_input(a, b, N, K, M);
     ref->run_kernel();
     const auto ref_res = ref->get_output();
-    const auto sol = solution(true);
+    const auto sol = solution();
     sol->set_input(a, b, N, K, M);
     sol->run_kernel();
     const auto res = sol->get_output();
@@ -49,16 +48,16 @@ int main() {
     std::cout << "Validation Successful" << std::endl;
     return EXIT_SUCCESS;
   } catch (const cl::BuildError& err) {
-    std::println(std::cerr, "OpenCL build error: {}, code: {}", err.what(), get_error_string(err.err()));
+    std::cerr << "OpenCL build error: " << err.what() << ", code: " << get_error_string(err.err()) << '\n';
     for (const auto& [_, log] : err.getBuildLog()) {
-      std::println("{}", log);
+      std::cerr << log << '\n';
     }
   } catch (const cl::Error& err) {
-    std::println("OpenCL error: {}, code: {}", err.what(), get_error_string(err.err()));
+    std::cerr << "OpenCL error: " << err.what() << ", code: " << get_error_string(err.err()) << '\n';
   } catch (const std::exception& err) {
-    std::println("C++ exception: {}", err.what());
+    std::cerr << "C++ exception: " << err.what() << '\n';
   } catch (...) {
-    std::println("Unknown error");
+    std::cerr << "Unknown error" << '\n';
   }
   return EXIT_FAILURE;
 }

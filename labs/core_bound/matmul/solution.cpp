@@ -1,11 +1,65 @@
 #include "solution.h"
 
-#include <chrono>
-#include <numeric>
-#include <iostream>
-
 #include <CL/cl_version.h>
 #include <CL/opencl.hpp>
+
+namespace {
+
+const char* matmul_source = R"OpenCL(
+  void kernel matmul(global float* a, global float* b, int N, int K, int M, global float* res) {
+    for (int row = get_global_id(0); row < N; row += get_global_size(0)) {
+      for (int col = get_global_id(1); col < M; col += get_global_size(1)) {
+        float r = 0.0f;
+        for (int k = 0; k < K; ++k) {
+          r += a[row * K + k] * b[k * M + col];
+        }
+        res[row * M + col] = r;
+      }
+    }
+  }
+)OpenCL";
+
+} // namespace
+
+class Reference : public ISolution {
+public:
+  Reference() : program(matmul_source, true), matmul(program, "matmul") {
+  }
+  void set_input(const std::vector<float>& a, const std::vector<float>& b, int N, int K, int M) override {
+    a_buffer = cl::Buffer(a.begin(), a.end(), true);
+    b_buffer = cl::Buffer(b.begin(), b.end(), true);
+    result_bytes = N * M * sizeof(float);
+    result_buffer = cl::Buffer(CL_MEM_WRITE_ONLY, result_bytes);
+    this->N = N;
+    this->K = K;
+    this->M = M;
+  }
+  void run_kernel() override {
+    matmul(
+      cl::EnqueueArgs(cl::NDRange(N, M)),
+      a_buffer, b_buffer, N, K, M, result_buffer
+    ).wait();
+  }
+  std::vector<float> get_output() override {
+    std::vector<float> result(N * M);
+    enqueueReadBuffer(result_buffer, CL_TRUE, 0, result_bytes, result.data());
+    return result;
+  }
+private:
+  cl::Program program;
+  cl::KernelFunctor<cl::Buffer, cl::Buffer, int, int, int, cl::Buffer> matmul;
+  size_t result_bytes = 0;
+  cl::Buffer a_buffer;
+  cl::Buffer b_buffer;
+  int N = 0;
+  int K = 0;
+  int M = 0;
+  cl::Buffer result_buffer;
+};
+
+std::unique_ptr<ISolution> reference_solution() {
+  return std::make_unique<Reference>();
+}
 
 namespace {
 
@@ -18,18 +72,15 @@ public:
     buffer_ptr = static_cast<T*>(enqueueMapBuffer(buffer, CL_FALSE, flags, 0, buffer_size, nullptr, &event));
     event.wait();
   }
-
   ~BufferMapping() {
     try {
       unmap();
     } catch (...) {
     }
   }
- 
   T* ptr() {
     return buffer_ptr;
   }
-
   void unmap() {
     if (buffer_ptr == nullptr) {
       return;
@@ -39,29 +90,13 @@ public:
     event.wait();
     buffer_ptr = nullptr;
   }
-
 private:
   const cl::Buffer& buffer;
   T* buffer_ptr;
 };
 
-auto next_multiple(auto a, auto b) {
-  return (a + b - 1) / b * b;
-}
-
-const char* kernel_source = R"OpenCL(
-  void kernel matmul(global float* a, global float* b, int N, int K, int M, global float* res) {
-    for (int row = get_global_id(0); row < N; row += get_global_size(0)) {
-      for (int col = get_global_id(1); col < M; col += get_global_size(1)) {
-        float r = 0.0f;
-        for (int k = 0; k < K; ++k) {
-          r += a[row * K + k] * b[k * M + col];
-        }
-        res[row * M + col] = r;
-      }
-    }
-  }
-  void kernel matmul_tiled(
+const char* matmul_tiled_source = R"OpenCL(
+  void kernel matmul(
     global float* a,
     global float* b,
     int N,
@@ -94,85 +129,20 @@ const char* kernel_source = R"OpenCL(
 
 } // namespace
 
-class Reference : public ISolution {
-public:
-  Reference(bool profile) : profile(profile), program(kernel_source, true), matmul(program, "matmul") {
-  }
-  void set_input(const std::vector<float>& a, const std::vector<float>& b, int N, int K, int M) override {
-    wg_size_0 = std::min(16, N);
-    wg_size_1 = std::min(16, M);
-    wg_count_0 = (N + wg_size_0 - 1) / wg_size_0;
-    wg_count_1 = (M + wg_size_1 - 1) / wg_size_1;
-    a_buffer = cl::Buffer(a.begin(), a.end(), true);
-    b_buffer = cl::Buffer(b.begin(), b.end(), true);
-    result_bytes = N * M * sizeof(float);
-    result_buffer = cl::Buffer(CL_MEM_WRITE_ONLY, result_bytes);
-    this->N = N;
-    this->K = K;
-    this->M = M;
-  }
-  void run_kernel() override {
-    std::chrono::high_resolution_clock::time_point clock_start;
-    if (profile) {
-      clock_start = std::chrono::high_resolution_clock::now();
-    }
-    auto profile_event = matmul(
-      cl::EnqueueArgs(
-        cl::NDRange(wg_count_0 * wg_size_0, wg_count_1 * wg_size_1),
-        cl::NDRange(wg_size_0, wg_size_1)
-      ),
-      a_buffer, b_buffer, N, K, M, result_buffer
-    );
-    profile_event.wait();
-    if (profile) {
-      const auto clock_finish = std::chrono::high_resolution_clock::now();
-      std::cout << "clock time: " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(clock_finish - clock_start) << "\n";
-      std::cout << "profile time: " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds(
-          profile_event.getProfilingInfo<CL_PROFILING_COMMAND_END>() - profile_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()
-        )) << "\n";
-    }
-  }
-  std::vector<float> get_output() override {
-    std::vector<float> result(N * M);
-    enqueueReadBuffer(result_buffer, CL_TRUE, 0, result_bytes, result.data());
-    return result;
-  }
-private:
-  const bool profile;
-  cl::Program program;
-  cl::KernelFunctor<cl::Buffer, cl::Buffer, int, int, int, cl::Buffer> matmul;
-  size_t wg_size_0 = 0;
-  size_t wg_size_1 = 0;
-  size_t wg_count_0 = 0;
-  size_t wg_count_1 = 0;
-  size_t result_bytes = 0;
-  cl::Buffer a_buffer;
-  cl::Buffer b_buffer;
-  int N = 0;
-  int K = 0;
-  int M = 0;
-  cl::Buffer result_buffer;
-};
-
-std::unique_ptr<ISolution> reference_solution(bool profile) {
-  return std::make_unique<Reference>(profile);
-}
-
 class Solution : public ISolution {
 public:
-  Solution(bool profile) : profile(profile), program(kernel_source, true), matmul(program, "matmul_tiled") {
+  Solution() : program(matmul_tiled_source, true), matmul(program, "matmul") {
   }
   void set_input(const std::vector<float>& a, const std::vector<float>& b, int N, int K, int M) override {
     this->N = N;
     this->K = K;
     this->M = M;
+    auto next_multiple = [](auto a, auto b) {
+      return (a + b - 1) / b * b;
+    };
     N_buf = next_multiple(N, kTileSize);
     K_buf = next_multiple(K, kTileSize);
     M_buf = next_multiple(M, kTileSize);
-    wg_count_0 = N_buf / kTileSize;
-    wg_count_1 = M_buf / kTileSize;
     a_buffer = cl::Buffer(CL_MEM_READ_ONLY, N_buf * K_buf * sizeof(float));
     BufferMapping<float> a_mapping(a_buffer, CL_MAP_WRITE);
     for (int i = 0; i < N; ++i) {
@@ -193,28 +163,11 @@ public:
     result_buffer = cl::Buffer(CL_MEM_WRITE_ONLY, result_bytes);
   }
   void run_kernel() override {
-    std::chrono::high_resolution_clock::time_point clock_start;
-    if (profile) {
-      clock_start = std::chrono::high_resolution_clock::now();
-    }
-    const auto local_buffer_size = kTileSize * kTileSize * sizeof(float);
-    auto profile_event = matmul(
-      cl::EnqueueArgs(
-        cl::NDRange(wg_count_0 * kTileSize, wg_count_1 * kTileSize),
-        cl::NDRange(kTileSize, kTileSize)
-      ),
-      a_buffer, b_buffer, N_buf, K_buf, M_buf, kTileSize, cl::Local(local_buffer_size), cl::Local(local_buffer_size), result_buffer
-    );
-    profile_event.wait();
-    if (profile) {
-      const auto clock_finish = std::chrono::high_resolution_clock::now();
-      std::cout << "clock time: " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(clock_finish - clock_start) << "\n";
-      std::cout << "profile time: " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds(
-          profile_event.getProfilingInfo<CL_PROFILING_COMMAND_END>() - profile_event.getProfilingInfo<CL_PROFILING_COMMAND_START>()
-        )) << "\n";
-    }
+    const auto local_buffer = cl::Local(kTileSize * kTileSize * sizeof(float));
+    matmul(
+      cl::EnqueueArgs(cl::NDRange(N_buf, M_buf), cl::NDRange(kTileSize, kTileSize)),
+      a_buffer, b_buffer, N_buf, K_buf, M_buf, kTileSize, local_buffer, local_buffer, result_buffer
+    ).wait();
   }
   std::vector<float> get_output() override {
     std::vector<float> result(N * M);
@@ -227,7 +180,6 @@ public:
   }
 private:
   static constexpr int kTileSize = 8;
-  const bool profile;
   cl::Program program;
   cl::KernelFunctor<
     cl::Buffer,
@@ -240,8 +192,6 @@ private:
     cl::LocalSpaceArg,
     cl::Buffer
   > matmul;
-  int wg_count_0 = 0;
-  int wg_count_1 = 0;
   cl::Buffer a_buffer;
   cl::Buffer b_buffer;
   int N = 0;
@@ -253,6 +203,6 @@ private:
   cl::Buffer result_buffer;
 };
 
-std::unique_ptr<ISolution> solution(bool profile) {
-  return std::make_unique<Solution>(profile);
+std::unique_ptr<ISolution> solution() {
+  return std::make_unique<Solution>();
 }
