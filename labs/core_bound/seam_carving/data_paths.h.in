@@ -1,0 +1,2 @@
+constexpr auto kKernelSourcePath = "@KERNELS_CL_PATH@";
+constexpr auto kImagePath = "@IMAGE_PATH@";
