@@ -115,8 +115,8 @@ namespace {
 // while SOLUTION processes multiple vectors simultaneosuly.
 
 #define SIMPLE_SOLUTION
-//#define SOLUTION_NO_UNROLL
-//#define SOLUTION
+// #define SOLUTION_NO_UNROLL
+// #define SOLUTION
 
 #ifdef SIMPLE_SOLUTION
 
@@ -129,13 +129,14 @@ std::vector<short> mandelbrot(int image_width, int image_height) {
   const auto min_x = kCenterX - kDiameterX / 2;
   const auto max_x = kCenterX + kDiameterX / 2;
   const auto min_y = kCenterY - diameter_y / 2;
-  const auto max_y = kCenterY + diameter_y / 2;  
+  const auto max_y = kCenterY + diameter_y / 2;
+  const auto kBatchSize = kVecSize * kUnrollSz;
   const size_t data_size = data_width * data_height;
-  std::vector<short> data(data_size);
+  std::vector<short> data((data_size + kBatchSize - 1) / kBatchSize * kBatchSize);
   auto px = 0;
   auto py = 0;
   const auto squared_bound = vec_set1(kSquareBound);
-  for (int data_idx = 0; data_idx < data_size; data_idx += kVecSize * kUnrollSz) {
+  for (auto data_idx = 0; data_idx < data_size; data_idx += kBatchSize) {
     std::array<Vec, kUnrollSz> c_x, c_y, z_x, z_y;
     std::array<std::array<int, kVecSize>, kUnrollSz> res;
     std::array<uint32_t, kUnrollSz> finished_mask;
@@ -157,8 +158,8 @@ std::vector<short> mandelbrot(int image_width, int image_height) {
       res[u].fill(kMaxIterations);
       finished_mask[u] = (1 << kVecSize) - 1;
     }
-    auto alive_cnt = kUnrollSz;
-    for (auto iter_cnt = 0; iter_cnt < kMaxIterations && alive_cnt != 0; ++iter_cnt) {
+    auto active_cnt = kUnrollSz;
+    for (auto iter_cnt = 0; iter_cnt < kMaxIterations && active_cnt != 0; ++iter_cnt) {
       for (auto u = 0; u < kUnrollSz; ++u) {
         if (finished_mask[u] == 0) {
           continue;
@@ -173,7 +174,7 @@ std::vector<short> mandelbrot(int image_width, int image_height) {
           const auto res_idx = std::countr_zero(mask);
           finished_mask[u] &= ~((uint32_t)1 << res_idx);
           res[u][res_idx] = iter_cnt;
-          alive_cnt -= finished_mask[u] == 0;
+          active_cnt -= finished_mask[u] == 0;
         }
         const auto z_xy = vec_mul(z_x[u], z_y[u]);
         z_x[u] = vec_add(vec_sub(z_xx, z_yy), c_x[u]);
@@ -184,6 +185,7 @@ std::vector<short> mandelbrot(int image_width, int image_height) {
       std::copy(res[u].begin(), res[u].end(), data.begin() + data_idx + u * kVecSize);
     }
   }
+  data.resize(data_size);
   return data;
 }
 
