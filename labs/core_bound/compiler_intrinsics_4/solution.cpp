@@ -1,6 +1,7 @@
 #include "const.h"
 #include "solution.h"
 #include <cmath>
+#include <iostream>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <emmintrin.h>
@@ -96,7 +97,6 @@ namespace {
   };
   #endif  // __x86_64__
   constexpr auto kVecSize = sizeof(Vec) / sizeof(double);
-  constexpr int kUnrollSz = 2;
 }  // namespace
 
 // Note: 
@@ -114,9 +114,82 @@ namespace {
 // SOLUTION is an improved version. SOLUTION_NO_UNROLL process only one vector at a time 
 // while SOLUTION processes multiple vectors simultaneosuly.
 
-#define SOLUTION
+#define SIMPLE_SOLUTION
 //#define SOLUTION_NO_UNROLL
-#ifdef SOLUTION
+//#define SOLUTION
+
+#ifdef SIMPLE_SOLUTION
+
+constexpr int kUnrollSz = 4;
+
+std::vector<short> mandelbrot(int image_width, int image_height) {
+  const auto data_width = image_width + 2;
+  const auto data_height = image_height + 2;
+  const auto diameter_y = kDiameterX / image_width * image_height;
+  const auto min_x = kCenterX - kDiameterX / 2;
+  const auto max_x = kCenterX + kDiameterX / 2;
+  const auto min_y = kCenterY - diameter_y / 2;
+  const auto max_y = kCenterY + diameter_y / 2;  
+  const size_t data_size = data_width * data_height;
+  std::vector<short> data(data_size);
+  auto px = 0;
+  auto py = 0;
+  const auto squared_bound = vec_set1(kSquareBound);
+  for (int data_idx = 0; data_idx < data_size; data_idx += kVecSize * kUnrollSz) {
+    std::array<Vec, kUnrollSz> c_x, c_y, z_x, z_y;
+    std::array<std::array<int, kVecSize>, kUnrollSz> res;
+    std::array<uint32_t, kUnrollSz> finished_mask;
+    for (auto u = 0; u < kUnrollSz; ++u) {
+      std::array<double, kVecSize> c_x_src;
+      std::array<double, kVecSize> c_y_src;
+      for (auto i = 0; i < kVecSize; ++i) {
+        c_x_src[i] = min_x + (max_x - min_x) * px / data_width;
+        c_y_src[i] = min_y + (max_y - min_y) * py / data_height;
+        if (++px == data_width) {
+          px = 0;
+          ++py;
+        }
+      }
+      c_x[u] = vec_load(c_x_src.data());
+      c_y[u] = vec_load(c_y_src.data());
+      z_x[u] = vec_setzero();
+      z_y[u] = vec_setzero();
+      res[u].fill(kMaxIterations);
+      finished_mask[u] = (1 << kVecSize) - 1;
+    }
+    auto alive_cnt = kUnrollSz;
+    for (auto iter_cnt = 0; iter_cnt < kMaxIterations && alive_cnt != 0; ++iter_cnt) {
+      for (auto u = 0; u < kUnrollSz; ++u) {
+        if (finished_mask[u] == 0) {
+          continue;
+        }
+        const auto z_xx = vec_mul(z_x[u], z_x[u]);
+        const auto z_yy = vec_mul(z_y[u], z_y[u]);
+        for (
+          uint32_t mask = vec_movemask(vec_cmpgt(vec_add(z_xx, z_yy), squared_bound)) & finished_mask[u];
+          mask;
+          mask &= mask - 1
+        ) {
+          const auto res_idx = std::countr_zero(mask);
+          finished_mask[u] &= ~((uint32_t)1 << res_idx);
+          res[u][res_idx] = iter_cnt;
+          alive_cnt -= finished_mask[u] == 0;
+        }
+        const auto z_xy = vec_mul(z_x[u], z_y[u]);
+        z_x[u] = vec_add(vec_sub(z_xx, z_yy), c_x[u]);
+        z_y[u] = vec_add(vec_add(z_xy, z_xy), c_y[u]);
+      }
+    }
+    for (auto u = 0; u < kUnrollSz; ++u) {
+      std::copy(res[u].begin(), res[u].end(), data.begin() + data_idx + u * kVecSize);
+    }
+  }
+  return data;
+}
+
+#elif defined(SOLUTION)
+
+constexpr int kUnrollSz = 2;
 
 std::vector<short> mandelbrot(int image_width, int image_height) {
   // Add two extra pixels to the data array dimensions to simplify anti-aliasing code
