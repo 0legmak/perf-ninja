@@ -1,6 +1,7 @@
 #include <array>
 #include <cassert>
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <list>
@@ -125,7 +126,7 @@ void decode(const std::vector<unsigned char>& input, std::vector<Char>& output, 
 #endif
     std::vector<Char> code_words(total_code_word_size);
     size_t codes_idx = 0;
-    std::array<std::span<Char>, kCodeCnt> dict;
+    std::vector<std::span<Char>> dict(kCodeCnt);
     for (auto i = 0; i < kAlphaSz; ++i) {
         code_words[codes_idx] = i;
         dict[i] = std::span(code_words).subspan(codes_idx, 1);
